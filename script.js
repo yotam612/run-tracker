@@ -128,13 +128,13 @@
       const lines = input.split(/\r?\n/).map(l => l.trim()).filter(l => l);
       const parsed = [];
       for (const line of lines) {
-        let match = line.match(/(\d+)%\s*-\s*(\d+)%\s*x(\d+)/);
+        let match = line.match(/(\d+(?:\.\d+)?)%\s*-\s*(\d+(?:\.\d+)?)%\s*x(\d+)/);
         if (match) {
-          parsed.push({ from: +match[1], to: +match[2], count: +match[3], raw: line }); continue;
+          parsed.push({ from: parseFloat(match[1]), to: parseFloat(match[2]), count: +match[3], raw: line }); continue;
         }
-        match = line.match(/(\d+)%\s*x(\d+)/);
+        match = line.match(/(\d+(?:\.\d+)?)%\s*x(\d+)/);
         if (match) {
-          parsed.push({ from: 0, to: +match[1], count: +match[2], raw: line });
+          parsed.push({ from: 0, to: parseFloat(match[1]), count: +match[2], raw: line });
         }
       }
       return parsed;
@@ -290,7 +290,9 @@
       const partStats = parts.map(part => {
         const cur = accumulateWeightedDynamic(part, batchesDesc);
         return {
-          name: part.name,
+          name: formatRange(part.from, part.to),
+          from: part.from,
+          to: part.to,
           attempts: cur.attempts,
           passes: cur.passes,
           rate: cur.weightedRate, // percent
@@ -302,6 +304,8 @@
         const cur = accumulateWindowUnweightedNoSplit(run, batchesDesc, 100);
         return {
           name: run.name,
+          from: run.from,
+          to: run.to,
           attempts: cur.attempts,
           passes: cur.passes,
           rate: cur.rate, // percent
@@ -316,14 +320,14 @@
     // Sessions tab — Latest session stats (no diff).
     function buildSessionsSessionStats(parts, runs, importLogs) {
       if (!importLogs.length) return [];
-      const allRanges = [...parts, ...runs];
+      const allRanges = [...parts.map(p => ({...p, name: formatRange(p.from, p.to)})), ...runs];
       const latest = importLogs[importLogs.length - 1].data;
 
       return allRanges.map(range => {
         const cur = accumulate(range, [{ data: latest }], Infinity);
         if (cur.attempts === 0) return null;
         const rate = +(100 * cur.passes / cur.attempts).toFixed(1);
-        return { name: range.name, attempts: cur.attempts, passes: cur.passes, rate };
+        return { name: range.name, from: range.from, to: range.to, attempts: cur.attempts, passes: cur.passes, rate };
       }).filter(Boolean).sort((a,b)=>a.rate-b.rate);
     }
 
@@ -332,7 +336,7 @@
     // "Current" = most recent ~100 attempts (whole batches only).
     // "Previous" = next ~100 attempts after the current window (whole batches only).
     function buildTrendsOverallStats(parts, runs, importLogs) {
-      const allRanges = [...parts, ...runs];
+      const allRanges = [...parts.map(p => ({...p, name: formatRange(p.from, p.to)})), ...runs];
       const batchesDesc = [...importLogs].reverse(); // newest → oldest
 
       return allRanges.map(range => {
@@ -347,6 +351,8 @@
 
         return {
           name: range.name,
+          from: range.from,
+          to: range.to,
           attempts: cur.attempts,
           passes: cur.passes,
           rate,
@@ -358,7 +364,7 @@
     // Trends tab — Daily stats with comparison to previous day (simple average).
     // This mirrors your existing buildDailyStats; exposed under a trends-specific name.
     function buildTrendsDailyStats(parts, runs, importLogs, currentDay) {
-      const allRanges = [...parts, ...runs];
+      const allRanges = [...parts.map(p => ({...p, name: formatRange(p.from, p.to)})), ...runs];
       const dayKeys   = Object.keys(days);
       const idx       = currentDay ? dayKeys.indexOf(currentDay) : -1;
       const prevDay   = idx > 0 ? dayKeys[idx - 1] : null;
@@ -377,6 +383,8 @@
 
         return {
           name:     range.name,
+          from:     range.from,
+          to:       range.to,
           attempts: cur.attempts,
           passes:   cur.passes,
           rate,
@@ -550,7 +558,9 @@
       const partStats = parts.map(part => {
         const cur = accumulateWeightedDynamic(part, batchesDesc);
         return {
-          name: part.name,
+          name: formatRange(part.from, part.to),
+          from: part.from,
+          to: part.to,
           attempts: cur.attempts,
           passes: cur.passes,
           rate: cur.weightedRate,
@@ -569,6 +579,8 @@
       }));
       const runStats = scheduled.map(r => ({
         name: formatRange(parts[r.start].from, parts[r.end].to),
+        from: parts[r.start].from,
+        to: parts[r.end].to,
         attempts: 0,
         passes: 0,
         rate: +(r.prob * 100).toFixed(1),
@@ -601,30 +613,29 @@
     function applyRunFilter() {
       const runDef = runs.find(r => r.name === selectedRunName);
 
-      const isPartName = (s) => parts.some(p => p.name === s.name);
-      const isRunName  = (s) => runs.some(r => r.name === s.name);
+      const isPartStat = (s) => parts.some(p => p.from === s.from && p.to === s.to);
+      const isRunStat  = (s) => runs.some(r => r.name === s.name);
 
       const filterBySelectedRun = (statsArray) => {
-        if (!selectedRunName) return statsArray.filter(isPartName);
+        if (!selectedRunName) return statsArray.filter(isPartStat);
         return statsArray.filter(s => {
-          const partDef = parts.find(p => p.name === s.name);
-          return partDef && runDef && runDef.from <= partDef.from && runDef.to >= partDef.to;
+          return isPartStat(s) && runDef && runDef.from <= s.from && runDef.to >= s.to;
         });
       };
 
       // --- Sessions tab (Overall) ---
-      render(filterBySelectedRun((window.sessionsOverall || []).filter(isPartName)), 'sessionsPartsOverall', false);
-      render((window.sessionsOverall || []).filter(isRunName),                            'sessionsRunsOverall',  false);
+      render(filterBySelectedRun((window.sessionsOverall || []).filter(isPartStat)), 'sessionsPartsOverall', false);
+      render((window.sessionsOverall || []).filter(isRunStat),                            'sessionsRunsOverall',  false);
 
       // --- Sessions tab (Latest) ---
-      render(filterBySelectedRun((window.sessionsSession || []).filter(isPartName)), 'sessionsPartsLatest', false);
-      render((window.sessionsSession || []).filter(isRunName),                            'sessionsRunsLatest',  false);
+      render(filterBySelectedRun((window.sessionsSession || []).filter(isPartStat)), 'sessionsPartsLatest', false);
+      render((window.sessionsSession || []).filter(isRunStat),                            'sessionsRunsLatest',  false);
 
       // --- Trends tab (Overall with diff) ---
-      render(filterBySelectedRun((window.trendsOverall || []).filter(isPartName)),   'trendsPartsOverall',  true);
+      render(filterBySelectedRun((window.trendsOverall || []).filter(isPartStat)),   'trendsPartsOverall',  true);
 
       // --- Trends tab (Daily with diff) ---
-      render(filterBySelectedRun((window.trendsDaily || []).filter(isPartName)),     'trendsPartsDaily',    true);
+      render(filterBySelectedRun((window.trendsDaily || []).filter(isPartStat)),     'trendsPartsDaily',    true);
     }
 
 
@@ -674,32 +685,15 @@
       }
 
       currentDay = id;
-      updateDaySelect();
+      updateDayDisplay();
       calculateStats();
       saveToLocal();
     }
 
-    function updateDaySelect() {
-      const sel = document.getElementById('daySelect');
-      const viewSel = document.getElementById('viewDaySelect');
-      sel.innerHTML = '';
-      viewSel.innerHTML = '<option value="">-- View Day Stats --</option>';
-
-      Object.keys(days).forEach(d => {
-        let opt = document.createElement('option');
-        opt.value = d; opt.text = d;
-        if (d === currentDay) opt.selected = true;
-        sel.appendChild(opt);
-
-        let viewOpt = document.createElement('option');
-        viewOpt.value = d; viewOpt.text = d;
-        viewSel.appendChild(viewOpt);
-      });
-    }
-
-    function selectDay(day) {
-      currentDay = day;
-      calculateStats();
+    function updateDayDisplay() {
+      const div = document.getElementById('currentDayDisplay');
+      if (!div) return;
+      div.textContent = currentDay ? currentDay : 'No day';
     }
 
     function toggleExpand(button) {
@@ -751,11 +745,25 @@
     }
 
     function addPart() {
-      const from = parseFloat(document.getElementById('partFrom').value);
-      const to = parseFloat(document.getElementById('partTo').value);
+      const fromInput = document.getElementById('partFrom');
+      const toInput = document.getElementById('partTo');
+      const from = parseFloat(fromInput.value);
+      const to = parseFloat(toInput.value);
       if (isNaN(from) || isNaN(to)) return;
-      parts.push({ name: formatRange(from, to), from, to });
+      parts.push({ from, to });
       renderParts(); calculateStats(); saveToLocal();
+      fromInput.value = '';
+      toInput.value = '';
+    }
+
+    function setStartAfterPrevious() {
+      const fromInput = document.getElementById('partFrom');
+      if (parts.length === 0) {
+        fromInput.value = 0;
+      } else {
+        const last = parts[parts.length - 1];
+        fromInput.value = last.to;
+      }
     }
 
     function renderParts() {
@@ -799,7 +807,7 @@
       const from = parseFloat(prompt("New 'from' value:", parts[i].from));
       const to = parseFloat(prompt("New 'to' value:", parts[i].to));
       if (isNaN(from) || isNaN(to)) return;
-      parts[i] = { name: formatRange(from, to), from, to };
+      parts[i] = { from, to };
       renderParts(); calculateStats(); saveToLocal();
     }
 
@@ -818,8 +826,7 @@
       delete days[last];
 
       currentDay = Object.keys(days).pop() || null;
-
-      updateDaySelect();
+      updateDayDisplay();
       calculateStats();
       saveToLocal();
     }
@@ -838,6 +845,7 @@
         const name = key.replace('runTracker_', '');
         const o = document.createElement('option');
         o.text = name; o.value = name;
+        if (name === currentSaveFile) o.selected = true;
         sel.appendChild(o);
       });
       sel.onchange = () => { if (sel.value) loadFromLocal(sel.value); };
@@ -851,10 +859,26 @@
         parts = []; runs = []; runDataRaw = "";
         allRunsMemory = []; importLogs = []; days = {}; currentDay = null;
         document.getElementById('runData').value = "";
-        renderParts(); renderLogs(); updateDaySelect(); calculateStats(); saveToLocal();
+        renderParts(); renderLogs(); updateDayDisplay(); calculateStats(); saveToLocal();
+        setupSaveFilePrompt();
       };
 
       c.appendChild(b);
+
+      const delBtn = document.createElement('button');
+      delBtn.textContent = 'Delete Save File';
+      delBtn.onclick = () => {
+        if (!currentSaveFile) return;
+        if (!confirm('Delete current save file?')) return;
+        localStorage.removeItem('runTracker_' + currentSaveFile);
+        currentSaveFile = null;
+        parts = []; runs = []; runDataRaw = "";
+        allRunsMemory = []; importLogs = []; days = {}; currentDay = null;
+        document.getElementById('runData').value = "";
+        renderParts(); renderLogs(); updateDayDisplay(); calculateStats();
+        setupSaveFilePrompt();
+      };
+      c.appendChild(delBtn);
 
       // Export Button
       const exportBtn = document.createElement('button');
@@ -899,6 +923,7 @@
       };
       c.appendChild(importBtn);
 
+      updateDayDisplay();
     }
 
     function saveToLocal() {
@@ -910,39 +935,36 @@
     function loadFromLocal(name) {
       const d = JSON.parse(localStorage.getItem('runTracker_' + name));
       if (!d) return;
-      parts = d.parts || [];
+      const nameMap = (d.parts || []).reduce((acc, p) => {
+        if (p.name !== undefined) acc[p.name] = formatRange(p.from, p.to);
+        return acc;
+      }, {});
+      parts = (d.parts || []).map(p => ({ from: p.from, to: p.to }));
       runs = [];
       allRunsMemory = d.allRunsMemory || [];
       importLogs = d.importLogs || [];
       days = d.days || {};
+      // Rename old day keys if needed
+      Object.keys(days).forEach(day => {
+        const stats = days[day];
+        Object.keys(nameMap).forEach(oldName => {
+          if (stats[oldName]) {
+            stats[nameMap[oldName]] = stats[oldName];
+            delete stats[oldName];
+          }
+        });
+      });
       currentDay = d.currentDay || null;
       currentSaveFile = name;
       document.getElementById('runData').value = "";
-      renderParts(); renderLogs(); updateDaySelect(); calculateStats();
+      renderParts(); renderLogs(); updateDayDisplay(); calculateStats();
+      saveToLocal();
     }
 
 
     function showTab(id) {
       document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
       document.getElementById('tab_' + id).classList.add('active');
-    }
-
-    function renderDayStats(day) {
-      const dayStatsDiv = document.getElementById('dayStats');
-      dayStatsDiv.innerHTML = '';
-      if (!day || !days[day]) return;
-
-      const stats = days[day];
-      const keys = Object.keys(stats).sort();
-      for (const key of keys) {
-        const stat = stats[key];
-        const diff = getDayDiff(key, stat.rate);
-        const text = `${key}: ${stat.passes}/${stat.attempts} (${stat.rate}%)${diff}`;
-        let div = document.createElement('div');
-        div.className = 'stat-item';
-        div.textContent = text;
-        dayStatsDiv.appendChild(div);
-      }
     }
 
 
@@ -968,15 +990,11 @@
     function computeTrendsLevelSeries(parts, importLogs, batchLimit = Infinity) {
       if (!parts.length || !importLogs.length) return [];
 
-      const logs = (batchLimit && batchLimit < importLogs.length)
-        ? importLogs.slice(-batchLimit)
-        : importLogs;
-      const offset = importLogs.length - logs.length;
       const series = [];
 
       // Walk chronological prefixes: batches[0..i]
-      for (let i = 0; i < logs.length; i++) {
-        const prefix = logs.slice(0, i + 1);
+      for (let i = 0; i < importLogs.length; i++) {
+        const prefix = importLogs.slice(0, i + 1);
         const batchesDesc = prefix.slice().reverse(); // newest→oldest within the prefix
 
         // Per-part windowed rates
@@ -988,10 +1006,10 @@
         }
         if (product === null) continue; // skip until all parts have data in the window
 
-        series.push({ x: offset + i + 1, y: product });
+        series.push({ x: i + 1, y: product });
       }
 
-      return series;
+      return (batchLimit && batchLimit < series.length) ? series.slice(-batchLimit) : series;
     }
 
     function getTrendBatchLimit() {
