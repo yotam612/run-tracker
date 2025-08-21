@@ -1,166 +1,119 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Run Progress Tracker</title>
-  <style>
-    body { font-family: sans-serif; padding: 10px; font-size: 14px; }
-textarea, input, select { width: 100%; margin-bottom: 6px; padding: 6px; font-size: 14px; }
-.part-item, .run-item, .stat-item, .log-item, .day-item { margin: 4px 0; padding: 6px; border: 1px solid #ccc; background: #f9f9f9; }
-button { padding: 6px 10px; font-size: 13px; margin-right: 4px; }
-.stats-list, .log-list, .part-list, .run-list { max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 6px; background: #f4f4f4; }
-.tab-content { display: none; margin-top: 10px; }
-.tab-content.active { display: block; }
-#navTabs button { margin-right: 4px; padding: 6px 10px; }
-.expandable-container {
-  position: relative;
-  margin-bottom: 10px;
-  border: 1px solid #ccc;
-  background: #f4f4f4;
-  padding-top: 26px; /* space for button */
-}
-
-.toggle-btn {
-  position: absolute;
-  top: 2px;
-  right: 6px;
-  font-size: 12px;
-  padding: 2px 6px;
-  cursor: pointer;
-}
-
-  </style>
-  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
-</head>
-<body>
-  <h1>Run Progress Tracker</h1>
-  <div id="saveFileUI"></div>
-
-  <div id="dayControl" style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
-    <button onclick="startNewDay()">New Day</button>
-    <button onclick="undoNewDay()">Remove Day</button>
-    <select id="daySelect" onchange="selectDay(this.value)"></select>
-    <select id="viewDaySelect" onchange="renderDayStats(this.value)">
-      <option value="">-- View Day Stats --</option>
-    </select>
-  </div>
-
-  <div id="navTabs" style="margin-top: 10px;">
-    <button onclick="showTab('input')">Run Input</button>
-    <button onclick="showTab('parts')">Parts</button>
-    <button onclick="showTab('runs')">Runs</button>
-    <button onclick="showTab('sessions')">Sessions</button>
-    <button onclick="showTab('trends')">Trends</button>
-    <button onclick="showTab('logs')">Logs</button>
-  </div>
-
-  <div class="tab-content" id="tab_input">
-    <textarea id="runData" rows="10" placeholder="Enter run data here"></textarea>
-    <button onclick="importRunData()">Import Runs</button>
-  </div>
-
-  <div class="tab-content" id="tab_parts">
-    <input type="text" id="partName" placeholder="Part Name" />
-    <input type="number" id="partFrom" placeholder="From (%)" />
-    <input type="number" id="partTo" placeholder="To (%)" />
-    <button onclick="addPart()">Add Part</button>
-    <div class="expandable-container">
-      <button class="toggle-btn" onclick="toggleExpand(this)">Expand</button>
-      <div class="part-list" id="partList"></div>
-    </div>
-  </div>
-
-  <div class="tab-content" id="tab_runs">
-    <input type="text" id="runName" placeholder="Run Name" />
-    <input type="number" id="runFrom" placeholder="From (%)" />
-    <input type="number" id="runTo" placeholder="To (%)" />
-    <button onclick="addRun()">Add Run</button>
-    <div class="expandable-container">
-      <button class="toggle-btn" onclick="toggleExpand(this)">Expand</button>
-      <div class="run-list" id="runList"></div>
-    </div>
-  </div>
-
-  <div class="tab-content" id="tab_sessions">
-    <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
-      <h3 style="margin:0;">Sessions — Overall</h3>
-    </div>
-
-    <div class="expandable-container">
-      <button class="toggle-btn" onclick="toggleExpand(this)">Expand</button>
-      <div style="display:flex; gap:10px;">
-        <div class="stats-list" id="sessionsPartsOverall"></div>
-        <div class="stats-list" id="sessionsRunsOverall"></div>
-      </div>
-    </div>
-
-    <h3>Latest Session</h3>
-    <div class="expandable-container">
-      <button class="toggle-btn" onclick="toggleExpand(this)">Expand</button>
-      <div style="display:flex; gap:10px;">
-        <div class="stats-list" id="sessionsPartsLatest"></div>
-        <div class="stats-list" id="sessionsRunsLatest"></div>
-      </div>
-    </div>
-  </div>
-
-
-
-  <div class="tab-content" id="tab_trends">
-
-
-
-
-    <h3 style="display:flex;align-items:center;gap:8px;">
-      Trends — Level Chance Over Time
-      <button id="toggleTrendScale">Scale: Log</button>
-    </h3>
-    
-    <div class="expandable-container">
-      <button class="toggle-btn" onclick="toggleExpand(this)">Expand</button>
-      <div style="padding:6px; background:#fff; border:1px solid #ccc;">
-        <canvas id="trendsLevelChart" width="900" height="240"></canvas>
-      </div>
-    </div>
-
-    <h3>Trends — Overall (Current vs Previous)</h3>
-    <div class="expandable-container">
-      <button class="toggle-btn" onclick="toggleExpand(this)">Expand</button>
-      <div style="display:flex; gap:10px;">
-        <div class="stats-list" id="trendsPartsOverall"></div>
-        <div class="stats-list" id="trendsRunsOverall"></div>
-      </div>
-    </div>
-
-    <h3>Trends — Daily (with Comparison)</h3>
-    <div class="expandable-container">
-      <button class="toggle-btn" onclick="toggleExpand(this)">Expand</button>
-      <div style="display:flex; gap:10px;">
-        <div class="stats-list" id="trendsPartsDaily"></div>
-        <div class="stats-list" id="trendsRunsDaily"></div>
-      </div>
-    </div>
-  </div>
-
-  <div class="tab-content" id="tab_logs">
-    <h3>Import Log</h3>
-    <div class="expandable-container">
-      <button class="toggle-btn" onclick="toggleExpand(this)">Expand</button>
-      <div class="log-list" id="importLogs"></div>
-    </div>
-  </div>
-
-
-
-  <script>
+// Run Progress Tracker logic
     let parts = [], runs = [], runDataRaw = "";
     let allRunsMemory = [];
     let importLogs = [];
     let currentSaveFile = null;
     let days = {}; let currentDay = null;
     let selectedRunName = null;
-    window.runTargets = JSON.parse(localStorage.getItem('runTargets') || '{}');
+
+    const formatRange = (from, to) => `${from}% - ${to}%`;
+
+    /**
+     * Geometry Dash run scheduler (efficient, O(n) + pruning).
+     *
+     * Input:
+     *  - successRates: array of per-part success probabilities in [0,1].
+     *  - threshold: success coefficient in [0,1] (e.g., 0.10 for 10%).
+     *  - opts (optional):
+     *      - epsilon: clamp floor for probabilities; default 1e-12.
+     *      - oneBased: if true, returns 1-based indices; default false.
+     *
+     * Rules enforced:
+     *  - Runs are contiguous (neighbors only).
+     *  - For each start i, keep only the maximal run starting at i whose
+     *    product(probabilities) >= threshold. If even part i alone is < threshold,
+     *    still keep the singleton [i, i].
+     *  - After constructing one maximal run per start, remove any run that is fully
+     *    contained in another run (full-overlap pruning). Partial overlaps allowed.
+     *
+     * Probability model:
+     *  - Independence assumption: P(run) = Π p_k for parts in the run.
+     *  - Computed via log-sums to avoid underflow.
+     */
+    function scheduleRuns(successRates, threshold, opts = {}) {
+      const epsilon = opts.epsilon ?? 1e-12;
+      const oneBased = !!opts.oneBased;
+
+      if (!Array.isArray(successRates) || successRates.length === 0) {
+        return [];
+      }
+      if (!(threshold > 0 && threshold <= 1)) {
+        throw new Error("threshold must be in (0,1]. Use 0.10 for 10%.");
+      }
+
+      const n = successRates.length;
+      const clamp = (x, lo, hi) => Math.min(Math.max(x, lo), hi);
+
+      // Precompute log probabilities (all <= 0)
+      const logP = new Array(n);
+      for (let i = 0; i < n; i++) {
+        const p = clamp(successRates[i], epsilon, 1);
+        logP[i] = Math.log(p);
+      }
+      const logT = Math.log(clamp(threshold, epsilon, 1));
+
+      // Two-pointer expansion to get one maximal run per start index i
+      // sumLog represents log product over [i..j] when j >= i
+      let j = -1;
+      let sumLog = 0;
+      const runs = []; // {start, end, logProb}
+
+      for (let i = 0; i < n; i++) {
+        if (j < i - 1) {
+          // Reset window to empty before i
+          j = i - 1;
+          sumLog = 0;
+        }
+
+        // Try to extend j as far as threshold allows for this i
+        while (j + 1 < n && sumLog + logP[j + 1] >= logT) {
+          j++;
+          sumLog += logP[j];
+        }
+
+        if (j >= i) {
+          // Found a maximal run [i..j] s.t. product >= threshold
+          runs.push({ start: i, end: j, logProb: sumLog });
+          // Prepare for next i: shrink window from the left
+          sumLog -= logP[i];
+        } else {
+          // Even single part i is below threshold; keep singleton by rule
+          runs.push({ start: i, end: i, logProb: logP[i] });
+          // j < i, nothing to subtract (window is empty)
+        }
+      }
+
+      // Full containment pruning:
+      // Remove any run that is fully contained within another run.
+      // Sort by length DESC, then by start ASC for deterministic behavior.
+      runs.sort((a, b) => {
+        const lenA = a.end - a.start;
+        const lenB = b.end - b.start;
+        if (lenA !== lenB) return lenB - lenA;
+        return a.start - b.start;
+      });
+
+      const kept = [];
+      for (const r of runs) {
+        let contained = false;
+        for (const k of kept) {
+          if (k.start <= r.start && k.end >= r.end) {
+            contained = true;
+            break;
+          }
+        }
+        if (!contained) kept.push(r);
+      }
+
+      // Format output
+      return kept
+        .sort((a, b) => a.start - b.start || a.end - b.end) // optional: sort by start
+        .map(r => ({
+          start: oneBased ? r.start + 1 : r.start,
+          end: oneBased ? r.end + 1 : r.end,
+          prob: Math.exp(r.logProb) // run success probability (product)
+        }));
+    }
 
 
     function computeStatForRange(run, range) {
@@ -571,42 +524,6 @@ button { padding: 6px 10px; font-size: 13px; margin-right: 4px; }
             selectedRunName = (selectedRunName === s.name) ? null : s.name;
             applyRunFilter();
           });
-
-          // Prediction UI (Aim %) — ONLY in Sessions, NEVER in Trends
-          if (!inTrendsTab) {
-            const input = document.createElement('input');
-            input.type = 'number';
-            input.placeholder = 'Aim %';
-            input.style.marginLeft = '8px';
-            input.style.width = '60px';
-            input.style.fontSize = '12px';
-
-            const result = document.createElement('div');
-            result.className = 'aim-result';
-            result.style.fontSize = '11px';
-            result.style.marginTop = '2px';
-
-            if (window.runTargets[s.name]) {
-              input.value = window.runTargets[s.name];
-              result.textContent = processRunTarget(s.name, parseFloat(input.value));
-            }
-
-            input.addEventListener('change', () => {
-              const aim = parseFloat(input.value);
-              if (!isNaN(aim)) {
-                window.runTargets[s.name] = aim;
-                localStorage.setItem('runTargets', JSON.stringify(window.runTargets));
-                result.textContent = processRunTarget(s.name, aim);
-              } else {
-                delete window.runTargets[s.name];
-                localStorage.setItem('runTargets', JSON.stringify(window.runTargets));
-                result.textContent = '';
-              }
-            });
-
-            div.appendChild(input);
-            div.appendChild(result);
-          }
         }
 
         container.appendChild(div);
@@ -614,37 +531,6 @@ button { padding: 6px 10px; font-size: 13px; margin-right: 4px; }
     }
 
 
-
-
-    function processRunTarget(runName, targetPercent) {
-      const run = runs.find(r => r.name === runName);
-      if (!run) return '';
-
-      // Get parts fully covered by this run
-      const coveredParts = window.overall.filter(s => {
-        const part = parts.find(p => p.name === s.name);
-        return part &&
-          run.from <= part.from &&
-          run.to >= part.to;
-      });
-
-      if (!coveredParts.length) return 'No matching parts';
-
-      let expectedProb = 1;
-      for (const p of coveredParts) {
-        const prob = p.rate / 100;
-        expectedProb *= prob;
-      }
-
-      const expectedPercent = +(expectedProb * 100).toFixed(1);
-      const diff = expectedPercent - targetPercent;
-
-      if (diff >= 0) {
-        return `Expected: ${expectedPercent}% ≥ Target: ${targetPercent}% ✅`;
-      } else {
-        return `Expected: ${expectedPercent}% < Target: ${targetPercent}% ❌`;
-      }
-    }
 
 
 
@@ -658,28 +544,53 @@ button { padding: 6px 10px; font-size: 13px; margin-right: 4px; }
 
     // Computes datasets for both tabs and renders the trends chart.
     function calculateStats() {
-      // Sessions (weighted overall + latest session)
-      const sessionsOverall = buildSessionsOverallStats(parts, runs, importLogs);
-      const sessionsSession = buildSessionsSessionStats(parts, runs, importLogs);
+      const batchesDesc = [...importLogs].reverse();
 
-      // Trends (simple averages)
-      const trendsOverall = buildTrendsOverallStats(parts, runs, importLogs);
-      const trendsDaily   = currentDay ? buildTrendsDailyStats(parts, runs, importLogs, currentDay) : [];
+      const partStats = parts.map(part => {
+        const cur = accumulateWeightedDynamic(part, batchesDesc);
+        return {
+          name: part.name,
+          attempts: cur.attempts,
+          passes: cur.passes,
+          rate: cur.weightedRate,
+        };
+      });
 
-      // Expose for lists rendering
+      const successRates = partStats.map(p => p.rate / 100);
+      const tInput = document.getElementById('runThresholdInput');
+      const tPercent = tInput ? parseFloat(tInput.value) : 10;
+      const t = isNaN(tPercent) ? 0.10 : tPercent / 100;
+      const scheduled = scheduleRuns(successRates, t);
+      runs = scheduled.map(r => ({
+        name: formatRange(parts[r.start].from, parts[r.end].to),
+        from: parts[r.start].from,
+        to: parts[r.end].to,
+      }));
+      const runStats = scheduled.map(r => ({
+        name: formatRange(parts[r.start].from, parts[r.end].to),
+        attempts: 0,
+        passes: 0,
+        rate: +(r.prob * 100).toFixed(1),
+      }));
+
+      const sessionsOverall = [...partStats, ...runStats].sort((a,b)=>a.rate-b.rate);
+
+      const partStatsLatest = buildSessionsSessionStats(parts, [], importLogs);
+      const sessionsSession = [...partStatsLatest, ...runStats].sort((a,b)=>a.rate-b.rate);
+
+      const trendsOverall = buildTrendsOverallStats(parts, [], importLogs);
+      const trendsDaily   = currentDay ? buildTrendsDailyStats(parts, [], importLogs, currentDay) : [];
+
       window.sessionsOverall = sessionsOverall;
       window.sessionsSession = sessionsSession;
       window.trendsOverall   = trendsOverall;
       window.trendsDaily     = trendsDaily;
 
-      // Keep for run-target calc
-      window.overall = sessionsOverall;
+      window.overall = partStats;
 
-      // Render lists
       applyRunFilter();
 
-      // Render trend chart (only parts are considered; runs ignored)
-      const series = computeTrendsLevelSeries(parts, importLogs);
+      const series = computeTrendsLevelSeries(parts, importLogs, getTrendBatchLimit());
       renderTrendsLevelChart(series);
     }
 
@@ -710,11 +621,9 @@ button { padding: 6px 10px; font-size: 13px; margin-right: 4px; }
 
       // --- Trends tab (Overall with diff) ---
       render(filterBySelectedRun((window.trendsOverall || []).filter(isPartName)),   'trendsPartsOverall',  true);
-      render((window.trendsOverall || []).filter(isRunName),                              'trendsRunsOverall',   true);
 
       // --- Trends tab (Daily with diff) ---
       render(filterBySelectedRun((window.trendsDaily || []).filter(isPartName)),     'trendsPartsDaily',    true);
-      render((window.trendsDaily || []).filter(isRunName),                                'trendsRunsDaily',     true);
     }
 
 
@@ -841,21 +750,11 @@ button { padding: 6px 10px; font-size: 13px; margin-right: 4px; }
     }
 
     function addPart() {
-      const name = document.getElementById('partName').value;
-      const from = parseInt(document.getElementById('partFrom').value);
-      const to = parseInt(document.getElementById('partTo').value);
-      if (!name || isNaN(from) || isNaN(to)) return;
-      parts.push({ name, from, to });
+      const from = parseFloat(document.getElementById('partFrom').value);
+      const to = parseFloat(document.getElementById('partTo').value);
+      if (isNaN(from) || isNaN(to)) return;
+      parts.push({ name: formatRange(from, to), from, to });
       renderParts(); calculateStats(); saveToLocal();
-    }
-
-    function addRun() {
-      const name = document.getElementById('runName').value;
-      const from = parseInt(document.getElementById('runFrom').value);
-      const to = parseInt(document.getElementById('runTo').value);
-      if (!name || isNaN(from) || isNaN(to)) return;
-      runs.push({ name, from, to });
-      renderRuns(); saveToLocal();
     }
 
     function renderParts() {
@@ -866,7 +765,7 @@ button { padding: 6px 10px; font-size: 13px; margin-right: 4px; }
         div.className = 'part-item';
         div.dataset.index = i; // Important for reordering
         div.innerHTML = `
-          ${p.name}: ${p.from}% - ${p.to}% 
+          ${formatRange(p.from, p.to)}
           <button onclick="editPart(${i})">Edit</button>
           <button onclick="deletePart(${i})">Delete</button>
         `;
@@ -896,11 +795,10 @@ button { padding: 6px 10px; font-size: 13px; margin-right: 4px; }
     }
 
     function editPart(i) {
-      const name = prompt("New part name:", parts[i].name);
-      const from = parseInt(prompt("New 'from' value:", parts[i].from));
-      const to = parseInt(prompt("New 'to' value:", parts[i].to));
-      if (!name || isNaN(from) || isNaN(to)) return;
-      parts[i] = { name, from, to };
+      const from = parseFloat(prompt("New 'from' value:", parts[i].from));
+      const to = parseFloat(prompt("New 'to' value:", parts[i].to));
+      if (isNaN(from) || isNaN(to)) return;
+      parts[i] = { name: formatRange(from, to), from, to };
       renderParts(); calculateStats(); saveToLocal();
     }
 
@@ -925,60 +823,6 @@ button { padding: 6px 10px; font-size: 13px; margin-right: 4px; }
       saveToLocal();
     }
 
-
-    function renderRuns() {
-      const c = document.getElementById('runList');
-      c.innerHTML = '';
-      runs.forEach((r, i) => {
-        let div = document.createElement('div');
-        div.className = 'run-item';
-        div.dataset.index = i; // Important for reordering 
-        div.innerHTML = `
-          ${r.name}: ${r.from}% - ${r.to}% 
-          <button onclick="editRun(${i})">Edit</button>
-          <button onclick="deleteRun(${i})">Delete</button>
-        `;
-        c.appendChild(div);
-      });
-
-      Sortable.create(document.getElementById('runList'), {
-        animation: 150,
-        onEnd: function () {
-          const newOrder = [];
-          const items = document.querySelectorAll('#runList .run-item');
-          items.forEach(item => {
-            const idx = parseInt(item.dataset.index);
-            newOrder.push(runs[idx]);
-          });
-          runs = newOrder;
-          renderRuns();
-          saveToLocal();
-        }
-      });
-    }
-
-    function deleteRun(i) {
-      runs.splice(i, 1);
-      renderRuns(); saveToLocal();
-    }
-
-
-    function editRun(i) {
-      const name = prompt("New run name:", runs[i].name);
-      const from = parseInt(prompt("New 'from' value:", runs[i].from));
-      const to = parseInt(prompt("New 'to' value:", runs[i].to));
-      if (!name || isNaN(from) || isNaN(to)) return;
-      runs[i] = { name, from, to };
-      renderRuns(); saveToLocal();
-    }
-
-
-    function moveRun(i, dir) {
-      const j = i + dir;
-      if (j < 0 || j >= runs.length) return;
-      [runs[i], runs[j]] = [runs[j], runs[i]];
-      renderRuns(); saveToLocal();
-    }
 
 
     function setupSaveFilePrompt() {
@@ -1006,7 +850,7 @@ button { padding: 6px 10px; font-size: 13px; margin-right: 4px; }
         parts = []; runs = []; runDataRaw = "";
         allRunsMemory = []; importLogs = []; days = {}; currentDay = null;
         document.getElementById('runData').value = "";
-        renderParts(); renderRuns(); renderLogs(); updateDaySelect(); calculateStats(); saveToLocal();
+        renderParts(); renderLogs(); updateDaySelect(); calculateStats(); saveToLocal();
       };
 
       c.appendChild(b);
@@ -1058,7 +902,7 @@ button { padding: 6px 10px; font-size: 13px; margin-right: 4px; }
 
     function saveToLocal() {
       if (!currentSaveFile) return;
-      const d = { parts, runs, allRunsMemory, importLogs, days, currentDay };
+      const d = { parts, allRunsMemory, importLogs, days, currentDay };
       localStorage.setItem('runTracker_' + currentSaveFile, JSON.stringify(d));
     }
 
@@ -1066,14 +910,14 @@ button { padding: 6px 10px; font-size: 13px; margin-right: 4px; }
       const d = JSON.parse(localStorage.getItem('runTracker_' + name));
       if (!d) return;
       parts = d.parts || [];
-      runs = d.runs || [];
+      runs = [];
       allRunsMemory = d.allRunsMemory || [];
       importLogs = d.importLogs || [];
       days = d.days || {};
       currentDay = d.currentDay || null;
       currentSaveFile = name;
       document.getElementById('runData').value = "";
-      renderParts(); renderRuns(); renderLogs(); updateDaySelect(); calculateStats();
+      renderParts(); renderLogs(); updateDaySelect(); calculateStats();
     }
 
 
@@ -1120,14 +964,18 @@ button { padding: 6px 10px; font-size: 13px; margin-right: 4px; }
     // most recent ~100 attempts drawn from batches 0..i (no splitting), compute
     // per-part rates over that window, and push the product across parts.
     // Skips points until every part has at least 1 attempt in its window.
-    function computeTrendsLevelSeries(parts, importLogs) {
+    function computeTrendsLevelSeries(parts, importLogs, batchLimit = Infinity) {
       if (!parts.length || !importLogs.length) return [];
 
+      const logs = (batchLimit && batchLimit < importLogs.length)
+        ? importLogs.slice(-batchLimit)
+        : importLogs;
+      const offset = importLogs.length - logs.length;
       const series = [];
 
       // Walk chronological prefixes: batches[0..i]
-      for (let i = 0; i < importLogs.length; i++) {
-        const prefix = importLogs.slice(0, i + 1);
+      for (let i = 0; i < logs.length; i++) {
+        const prefix = logs.slice(0, i + 1);
         const batchesDesc = prefix.slice().reverse(); // newest→oldest within the prefix
 
         // Per-part windowed rates
@@ -1139,10 +987,25 @@ button { padding: 6px 10px; font-size: 13px; margin-right: 4px; }
         }
         if (product === null) continue; // skip until all parts have data in the window
 
-        series.push({ x: i + 1, y: product });
+        series.push({ x: offset + i + 1, y: product });
       }
 
       return series;
+    }
+
+    function getTrendBatchLimit() {
+      const input = document.getElementById('trendBatchLimit');
+      if (!input) return 50;
+      const v = parseInt(input.value, 10);
+      return isNaN(v) ? Infinity : v;
+    }
+
+    function setTrendBatchAll() {
+      const input = document.getElementById('trendBatchLimit');
+      if (input) {
+        input.value = '';
+        calculateStats();
+      }
     }
 
 
@@ -1300,7 +1163,7 @@ button { padding: 6px 10px; font-size: 13px; margin-right: 4px; }
         window.trendsScale = (window.trendsScale === 'log') ? 'linear' : 'log';
         btn.textContent = 'Scale: ' + (window.trendsScale === 'log' ? 'Log' : 'Linear');
         // re-render chart with current series
-        const series = computeTrendsLevelSeries(parts, importLogs);
+        const series = computeTrendsLevelSeries(parts, importLogs, getTrendBatchLimit());
         renderTrendsLevelChart(series);
       };
     }
@@ -1312,10 +1175,11 @@ button { padding: 6px 10px; font-size: 13px; margin-right: 4px; }
       showTab('input');
       calculateStats();
       setupTrendScaleToggle(); // wire the Trends chart scale toggle
+      const tInput = document.getElementById('runThresholdInput');
+      if (tInput) tInput.addEventListener('change', calculateStats);
+      const bInput = document.getElementById('trendBatchLimit');
+      if (bInput) bInput.addEventListener('change', calculateStats);
     };
 
 
 
-  </script>
-</body>
-</html>
