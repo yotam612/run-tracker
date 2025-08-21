@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Run Progress Tracker</title>
+    <link rel="stylesheet" href="style.css" />
+
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+</head>
+<body>
+  <h1>Run Progress Tracker</h1>
+  <div id="saveFileUI"></div>
+
+  <div id="dayControl" style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
+    <button onclick="startNewDay()">New Day</button>
+    <button onclick="undoNewDay()">Remove Day</button>
+    <select id="daySelect" onchange="selectDay(this.value)"></select>
+    <select id="viewDaySelect" onchange="renderDayStats(this.value)">
+      <option value="">-- View Day Stats --</option>
+    </select>
+  </div>
+
+  <div id="navTabs" style="margin-top: 10px;">
+    <button onclick="showTab('input')">Run Input</button>
+    <button onclick="showTab('parts')">Parts</button>
+    <button onclick="showTab('sessions')">Sessions</button>
+    <button onclick="showTab('trends')">Trends</button>
+    <button onclick="showTab('logs')">Logs</button>
+  </div>
+
+  <div class="tab-content" id="tab_input">
+    <textarea id="runData" rows="10" placeholder="Enter run data here"></textarea>
+    <button onclick="importRunData()">Import Runs</button>
+  </div>
+
+  <div class="tab-content" id="tab_parts">
+    <input type="text" id="partName" placeholder="Part Name" />
+    <input type="number" id="partFrom" placeholder="From (%)" />
+    <input type="number" id="partTo" placeholder="To (%)" />
+    <button onclick="addPart()">Add Part</button>
+    <div class="expandable-container">
+      <button class="toggle-btn" onclick="toggleExpand(this)">Expand</button>
+      <div class="part-list" id="partList"></div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab_sessions">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+      <h3 style="margin:0;">Sessions — Overall</h3>
+    </div>
+
+    <div class="expandable-container">
+      <button class="toggle-btn" onclick="toggleExpand(this)">Expand</button>
+      <div style="display:flex; gap:10px;">
+        <div class="stats-list" id="sessionsPartsOverall"></div>
+        <div class="stats-list" id="sessionsRunsOverall"></div>
+      </div>
+    </div>
+
+    <h3>Latest Session</h3>
+    <div class="expandable-container">
+      <button class="toggle-btn" onclick="toggleExpand(this)">Expand</button>
+      <div style="display:flex; gap:10px;">
+        <div class="stats-list" id="sessionsPartsLatest"></div>
+        <div class="stats-list" id="sessionsRunsLatest"></div>
+      </div>
+    </div>
+  </div>
+
+
+
+  <div class="tab-content" id="tab_trends">
+
+
+
+
+    <h3 style="display:flex;align-items:center;gap:8px;">
+      Trends — Level Chance Over Time
+      <button id="toggleTrendScale">Scale: Log</button>
+    </h3>
+    
+    <div class="expandable-container">
+      <button class="toggle-btn" onclick="toggleExpand(this)">Expand</button>
+      <div style="padding:6px; background:#fff; border:1px solid #ccc;">
+        <canvas id="trendsLevelChart" width="900" height="240"></canvas>
+      </div>
+    </div>
+
+    <h3>Trends — Overall (Current vs Previous)</h3>
+    <div class="expandable-container">
+      <button class="toggle-btn" onclick="toggleExpand(this)">Expand</button>
+      <div style="display:flex; gap:10px;">
+        <div class="stats-list" id="trendsPartsOverall"></div>
+      </div>
+    </div>
+
+    <h3>Trends — Daily (with Comparison)</h3>
+    <div class="expandable-container">
+      <button class="toggle-btn" onclick="toggleExpand(this)">Expand</button>
+      <div style="display:flex; gap:10px;">
+        <div class="stats-list" id="trendsPartsDaily"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab_logs">
+    <h3>Import Log</h3>
+    <div class="expandable-container">
+      <button class="toggle-btn" onclick="toggleExpand(this)">Expand</button>
+      <div class="log-list" id="importLogs"></div>
+    </div>
+  </div>
+
+
+
+    <script src="script.js"></script>
+</body>
+</html>
