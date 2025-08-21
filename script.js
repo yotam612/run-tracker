@@ -8,6 +8,7 @@
 
     const formatRange = (from, to) => `${from}% - ${to}%`;
 
+
     /**
      * Geometry Dash run scheduler (efficient, O(n) + pruning).
      *
