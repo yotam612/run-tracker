@@ -15,10 +15,7 @@
   <div id="dayControl" style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
     <button onclick="startNewDay()">New Day</button>
     <button onclick="undoNewDay()">Remove Day</button>
-    <select id="daySelect" onchange="selectDay(this.value)"></select>
-    <select id="viewDaySelect" onchange="renderDayStats(this.value)">
-      <option value="">-- View Day Stats --</option>
-    </select>
+    <div id="currentDayDisplay"></div>
   </div>
 
   <div id="navTabs" style="margin-top: 10px;">
@@ -38,7 +35,8 @@
     <input type="number" id="partFrom" placeholder="From (%)" step="any" />
     <input type="number" id="partTo" placeholder="To (%)" step="any" />
     <button onclick="addPart()">Add Part</button>
-  
+    <button onclick="setStartAfterPrevious()">Start After Previous</button>
+
     <div class="expandable-container">
       <button class="toggle-btn" onclick="toggleExpand(this)">Expand</button>
       <div class="part-list" id="partList"></div>
