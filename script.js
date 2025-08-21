@@ -5,7 +5,9 @@
     let currentSaveFile = null;
     let days = {}; let currentDay = null;
     let selectedRunName = null;
-    window.runTargets = JSON.parse(localStorage.getItem('runTargets') || '{}');
+
+    const formatRange = (from, to) => `${from}% - ${to}%`;
+
 
     /**
      * Geometry Dash run scheduler (efficient, O(n) + pruning).
@@ -523,42 +525,6 @@
             selectedRunName = (selectedRunName === s.name) ? null : s.name;
             applyRunFilter();
           });
-
-          // Prediction UI (Aim %) — ONLY in Sessions, NEVER in Trends
-          if (!inTrendsTab) {
-            const input = document.createElement('input');
-            input.type = 'number';
-            input.placeholder = 'Aim %';
-            input.style.marginLeft = '8px';
-            input.style.width = '60px';
-            input.style.fontSize = '12px';
-
-            const result = document.createElement('div');
-            result.className = 'aim-result';
-            result.style.fontSize = '11px';
-            result.style.marginTop = '2px';
-
-            if (window.runTargets[s.name]) {
-              input.value = window.runTargets[s.name];
-              result.textContent = processRunTarget(s.name, parseFloat(input.value));
-            }
-
-            input.addEventListener('change', () => {
-              const aim = parseFloat(input.value);
-              if (!isNaN(aim)) {
-                window.runTargets[s.name] = aim;
-                localStorage.setItem('runTargets', JSON.stringify(window.runTargets));
-                result.textContent = processRunTarget(s.name, aim);
-              } else {
-                delete window.runTargets[s.name];
-                localStorage.setItem('runTargets', JSON.stringify(window.runTargets));
-                result.textContent = '';
-              }
-            });
-
-            div.appendChild(input);
-            div.appendChild(result);
-          }
         }
 
         container.appendChild(div);
@@ -566,37 +532,6 @@
     }
 
 
-
-
-    function processRunTarget(runName, targetPercent) {
-      const run = runs.find(r => r.name === runName);
-      if (!run) return '';
-
-      // Get parts fully covered by this run
-      const coveredParts = window.overall.filter(s => {
-        const part = parts.find(p => p.name === s.name);
-        return part &&
-          run.from <= part.from &&
-          run.to >= part.to;
-      });
-
-      if (!coveredParts.length) return 'No matching parts';
-
-      let expectedProb = 1;
-      for (const p of coveredParts) {
-        const prob = p.rate / 100;
-        expectedProb *= prob;
-      }
-
-      const expectedPercent = +(expectedProb * 100).toFixed(1);
-      const diff = expectedPercent - targetPercent;
-
-      if (diff >= 0) {
-        return `Expected: ${expectedPercent}% ≥ Target: ${targetPercent}% ✅`;
-      } else {
-        return `Expected: ${expectedPercent}% < Target: ${targetPercent}% ❌`;
-      }
-    }
 
 
 
@@ -623,14 +558,17 @@
       });
 
       const successRates = partStats.map(p => p.rate / 100);
-      const scheduled = scheduleRuns(successRates, 0.10);
+      const tInput = document.getElementById('runThresholdInput');
+      const tPercent = tInput ? parseFloat(tInput.value) : 10;
+      const t = isNaN(tPercent) ? 0.10 : tPercent / 100;
+      const scheduled = scheduleRuns(successRates, t);
       runs = scheduled.map(r => ({
-        name: `${parts[r.start].from}-${parts[r.end].to}`,
+        name: formatRange(parts[r.start].from, parts[r.end].to),
         from: parts[r.start].from,
         to: parts[r.end].to,
       }));
       const runStats = scheduled.map(r => ({
-        name: `${parts[r.start].from}-${parts[r.end].to}`,
+        name: formatRange(parts[r.start].from, parts[r.end].to),
         attempts: 0,
         passes: 0,
         rate: +(r.prob * 100).toFixed(1),
@@ -653,7 +591,7 @@
 
       applyRunFilter();
 
-      const series = computeTrendsLevelSeries(parts, importLogs);
+      const series = computeTrendsLevelSeries(parts, importLogs, getTrendBatchLimit());
       renderTrendsLevelChart(series);
     }
 
@@ -813,11 +751,10 @@
     }
 
     function addPart() {
-      const name = document.getElementById('partName').value;
-      const from = parseInt(document.getElementById('partFrom').value);
-      const to = parseInt(document.getElementById('partTo').value);
-      if (!name || isNaN(from) || isNaN(to)) return;
-      parts.push({ name, from, to });
+      const from = parseFloat(document.getElementById('partFrom').value);
+      const to = parseFloat(document.getElementById('partTo').value);
+      if (isNaN(from) || isNaN(to)) return;
+      parts.push({ name: formatRange(from, to), from, to });
       renderParts(); calculateStats(); saveToLocal();
     }
 
@@ -829,7 +766,7 @@
         div.className = 'part-item';
         div.dataset.index = i; // Important for reordering
         div.innerHTML = `
-          ${p.name}: ${p.from}% - ${p.to}% 
+          ${formatRange(p.from, p.to)}
           <button onclick="editPart(${i})">Edit</button>
           <button onclick="deletePart(${i})">Delete</button>
         `;
@@ -859,11 +796,10 @@
     }
 
     function editPart(i) {
-      const name = prompt("New part name:", parts[i].name);
-      const from = parseInt(prompt("New 'from' value:", parts[i].from));
-      const to = parseInt(prompt("New 'to' value:", parts[i].to));
-      if (!name || isNaN(from) || isNaN(to)) return;
-      parts[i] = { name, from, to };
+      const from = parseFloat(prompt("New 'from' value:", parts[i].from));
+      const to = parseFloat(prompt("New 'to' value:", parts[i].to));
+      if (isNaN(from) || isNaN(to)) return;
+      parts[i] = { name: formatRange(from, to), from, to };
       renderParts(); calculateStats(); saveToLocal();
     }
 
@@ -1029,14 +965,18 @@
     // most recent ~100 attempts drawn from batches 0..i (no splitting), compute
     // per-part rates over that window, and push the product across parts.
     // Skips points until every part has at least 1 attempt in its window.
-    function computeTrendsLevelSeries(parts, importLogs) {
+    function computeTrendsLevelSeries(parts, importLogs, batchLimit = Infinity) {
       if (!parts.length || !importLogs.length) return [];
 
+      const logs = (batchLimit && batchLimit < importLogs.length)
+        ? importLogs.slice(-batchLimit)
+        : importLogs;
+      const offset = importLogs.length - logs.length;
       const series = [];
 
       // Walk chronological prefixes: batches[0..i]
-      for (let i = 0; i < importLogs.length; i++) {
-        const prefix = importLogs.slice(0, i + 1);
+      for (let i = 0; i < logs.length; i++) {
+        const prefix = logs.slice(0, i + 1);
         const batchesDesc = prefix.slice().reverse(); // newest→oldest within the prefix
 
         // Per-part windowed rates
@@ -1048,10 +988,25 @@
         }
         if (product === null) continue; // skip until all parts have data in the window
 
-        series.push({ x: i + 1, y: product });
+        series.push({ x: offset + i + 1, y: product });
       }
 
       return series;
+    }
+
+    function getTrendBatchLimit() {
+      const input = document.getElementById('trendBatchLimit');
+      if (!input) return 50;
+      const v = parseInt(input.value, 10);
+      return isNaN(v) ? Infinity : v;
+    }
+
+    function setTrendBatchAll() {
+      const input = document.getElementById('trendBatchLimit');
+      if (input) {
+        input.value = '';
+        calculateStats();
+      }
     }
 
 
@@ -1209,7 +1164,7 @@
         window.trendsScale = (window.trendsScale === 'log') ? 'linear' : 'log';
         btn.textContent = 'Scale: ' + (window.trendsScale === 'log' ? 'Log' : 'Linear');
         // re-render chart with current series
-        const series = computeTrendsLevelSeries(parts, importLogs);
+        const series = computeTrendsLevelSeries(parts, importLogs, getTrendBatchLimit());
         renderTrendsLevelChart(series);
       };
     }
@@ -1221,6 +1176,10 @@
       showTab('input');
       calculateStats();
       setupTrendScaleToggle(); // wire the Trends chart scale toggle
+      const tInput = document.getElementById('runThresholdInput');
+      if (tInput) tInput.addEventListener('change', calculateStats);
+      const bInput = document.getElementById('trendBatchLimit');
+      if (bInput) bInput.addEventListener('change', calculateStats);
     };
 
 
